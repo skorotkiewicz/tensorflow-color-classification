@@ -3,6 +3,9 @@ const tf = require("@tensorflow/tfjs-node");
 
 // Train new model => true; Use trained model => false;
 let TRAIN = false;
+if (process.env.NODE_ENV === "train") {
+  TRAIN = true;
+}
 
 const colorData = {
   entries: [
