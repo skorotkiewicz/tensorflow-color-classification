@@ -1,18 +1,24 @@
-require('@tensorflow/tfjs-node');
-const tf = require('@tensorflow/tfjs');
-const colorData = require('./colorData.json');
+// const tf = require("@tensorflow/tfjs");
+const tf = require("@tensorflow/tfjs-node");
 
-let labelList = [
-  'avermelhado',
-  'esverdeado',
-  'azulado',
-  'alaranjado',
-  'amarelado',
-  'rosado',
-  'arroxeado',
-  'amarronzado',
-  'acizentado'
-]
+// Train new model => true; Use trained model => false;
+let TRAIN = false;
+
+const colorData = {
+  entries: [
+    { r: 255, g: 0, b: 0, label: "red-ish" },
+    { r: 254, g: 0, b: 0, label: "red-ish" },
+    { r: 253, g: 0, b: 0, label: "red-ish" },
+    { r: 0, g: 255, b: 0, label: "green-ish" },
+    { r: 0, g: 254, b: 0, label: "green-ish" },
+    { r: 0, g: 253, b: 0, label: "green-ish" },
+    { r: 0, g: 0, b: 255, label: "blue-ish" },
+    { r: 0, g: 0, b: 254, label: "blue-ish" },
+    { r: 0, g: 0, b: 253, label: "blue-ish" },
+  ],
+};
+
+let labelList = ["red-ish", "green-ish", "blue-ish"];
 
 const parseData = () => {
   const colors = [];
@@ -34,19 +40,19 @@ const parseData = () => {
   const xs = tf.tensor2d(colors);
 
   //Create a 1d tensor with the index of the labels.
-  const labelsTensor = tf.tensor1d(labels, 'int32');
+  const labelsTensor = tf.tensor1d(labels, "int32");
 
   //Do a one hot encoding with the labels tensor to especify the right one with 1 and the others with 0.
-  const ys = tf.oneHot(labelsTensor, 9).cast('float32');
+  const ys = tf.oneHot(labelsTensor, 9).cast("float32");
 
   //Dispose the labelsTensor after using it to create the ys tensor.
   labelsTensor.dispose();
 
   return {
     xs,
-    ys
-  }
-}
+    ys,
+  };
+};
 
 const createModel = () => {
   //Creates a sequential model,
@@ -60,7 +66,8 @@ const createModel = () => {
     //Shape of the input.
     inputShape: [3],
     //Sigmoid is an activation function that squashs the numbers between 0 and 1.
-    activation: 'sigmoid'
+    // activation: "sigmoid",
+    activation: "relu",
   });
 
   const output = tf.layers.dense({
@@ -68,33 +75,32 @@ const createModel = () => {
     units: 9,
     //Softmax is an activation function that not only squashs the numbers between 0 and 1
     //but garantee that the results adds up to 1 (100%).
-    activation: 'softmax'
+    activation: "softmax",
   });
 
   //Adds both layers to the model
   model.add(hidden);
   model.add(output);
 
-  const LEARNING_RATE = 0.20;
+  const LEARNING_RATE = 0.2;
 
-  //Create a optimizer with stochastic gradient descent 
+  //Create a optimizer with stochastic gradient descent
   //to go down the graph of the loss function to try to minimize that loss.
   const optimizer = tf.train.sgd(LEARNING_RATE);
-
 
   //compiles the model
   model.compile({
     optimizer,
     //Categorical Crossentropy is a loss function designed to compare two probability distribution
     //and look at how much caos there is between them (the crossentropy between then).
-    loss: 'categoricalCrossentropy',
+    loss: "categoricalCrossentropy",
     //List of metrics to be evaluated by the model during training and testing
     //typically metrics=['accuracy'] is used.
-    metrics: ['accuracy'],
+    metrics: ["accuracy"],
   });
 
   return model;
-}
+};
 
 const train = async (model, tensors) => {
   //Train the model
@@ -107,18 +113,21 @@ const train = async (model, tensors) => {
     epochs: 1000,
   });
 
-  await model.save('file://trainedModel');
+  await model.save("file://trainedModel");
 
   return model;
-}
+};
 
 const main = async () => {
-  // const tensors = parseData();
-  // const model = createModel();
+  let trainedModel;
 
-  // const trainedModel = await train(model, tensors)
-
-  const trainedModel = await tf.loadLayersModel('file://trainedModel/model.json');
+  if (TRAIN) {
+    const tensors = parseData();
+    const model = createModel();
+    trainedModel = await train(model, tensors);
+  } else {
+    trainedModel = await tf.loadLayersModel("file://trainedModel/model.json");
+  }
 
   //Executes the provided function fn and after it is executed,
   //cleans up all intermediate tensors allocated by fn except those returned by fn.
@@ -127,25 +136,27 @@ const main = async () => {
     const g = 102;
     const b = 204;
 
-    const input = tf.tensor2d([
-      [r/255, g/255, b/255]
-    ]);
+    const input = tf.tensor2d([[r / 255, g / 255, b / 255]]);
 
     //After train, execute the inference for the input tensors.
     let results = trainedModel.predict(input);
 
+    console.log("\n");
+    results.print();
+
     //Returns the indice of the maximum value along an axis.
     let argMax = results.argMax(1);
 
-    //Synchronously downloads the values from the tf.Tensor. 
+    //Synchronously downloads the values from the tf.Tensor.
     //That is needed because the data is still on the GPU.
     let index = argMax.dataSync()[0];
 
     //The output value should be the index of the output label list.
     let label = labelList[index];
 
-    console.log(label)
+    console.log("Color label:", label);
+    console.log("\n");
   });
-}
+};
 
-main()
+main();
